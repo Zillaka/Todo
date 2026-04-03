@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Gestionnaire de tâches</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet"/>
+ <link rel="stylesheet" href="todo.css">
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+    <span class="logo-name">Ma Todo List</span>
+  </div>
+  <h1>Organisez votre<br>journée.</h1>
+  <p>Organisez vos tâches quotidiennes — simple & efficace</p>
+</header>
+
+<!-- Stats -->
+<div class="stats">
+  <div class="stat-card total">
+    <div class="label">Total</div>
+    <div class="value" id="stat-total">0</div>
+  </div>
+  <div class="stat-card active">
+    <div class="label">Actives</div>
+    <div class="value" id="stat-active">0</div>
+  </div>
+  <div class="stat-card done">
+    <div class="label">Terminées</div>
+    <div class="value" id="stat-done">0</div>
+  </div>
+</div>
+
+<!-- Card -->
+<div class="card">
+
+  <!-- Add form -->
+  <div class="add-section">
+    <div class="add-form">
+      <input type="text" id="new-task" placeholder="Ajouter une tâche…" autocomplete="off" maxlength="200"/>
+      <button class="add-btn" id="add-btn" title="Ajouter">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-wrap" id="progress-wrap" style="display:none">
+    <div class="progress-row">
+      <span class="progress-label">PROGRESSION</span>
+      <span class="progress-pct" id="progress-pct">0%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Filters -->
+  <div class="filter-bar">
+    <button class="filter-btn active" data-filter="all">Toutes</button>
+    <button class="filter-btn" data-filter="active">Actives</button>
+    <button class="filter-btn" data-filter="completed">Terminées</button>
+    <div class="spacer"></div>
+    <button class="bulk-btn" id="clear-completed" title="Supprimer les tâches terminées">
+      <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      Nettoyer
+    </button>
+  </div>
+
+  <!-- List -->
+  <ul id="todo-list"></ul>
+
+  <!-- Footer -->
+  <div class="card-footer">
+    <span class="footer-info" id="footer-info">Aucune tâche</span>
+    <span class="footer-info" style="opacity:.5;font-size:.7rem">Double-clic pour modifier</span>
+  </div>
+
+</div>
+
+<script>
+// ── Données ───────────────────────────────────────────────────────────────────
+const KEY = 'todos';
+let tasks = [];
+let filter = 'all';
+
+function load() {
+  try { tasks = JSON.parse(localStorage.getItem(KEY)) || []; } catch { tasks = []; }
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(tasks)); }
+
+// ── Métier ────────────────────────────────────────────────────────────────────
+function addTask(text) {
+  const t = text.trim();
+  if (!t) return;
+  tasks.push({ id: Date.now(), text: t, completed: false });
+  save(); render();
+}
+
+function deleteTask(id) {
+  const el = document.querySelector(`[data-id="${id}"]`);
+  if (!el) return;
+  el.classList.add('removing');
+  el.addEventListener('animationend', () => {
+    tasks = tasks.filter(t => t.id !== id);
+    save(); render();
+  }, { once: true });
+}
+
+function toggleTask(id) {
+  tasks = tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
+  save(); render();
+}
+
+function updateTask(id, val) {
+  const v = val.trim();
+  if (!v) return;
+  tasks = tasks.map(t => t.id === id ? { ...t, text: v } : t);
+  save(); render();
+}
+
+function clearCompleted() {
+  tasks = tasks.filter(t => !t.completed);
+  save(); render();
+}
+
+// ── Rendu ─────────────────────────────────────────────────────────────────────
+function filtered() {
+  if (filter === 'active') return tasks.filter(t => !t.completed);
+  if (filter === 'completed') return tasks.filter(t => t.completed);
+  return tasks;
+}
+
+function render() {
+  const list = document.getElementById('todo-list');
+  const activeN = tasks.filter(t => !t.completed).length;
+  const doneN = tasks.filter(t => t.completed).length;
+  const total = tasks.length;
+  const pct = total ? Math.round((doneN / total) * 100) : 0;
+
+  // Stats
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-active').textContent = activeN;
+  document.getElementById('stat-done').textContent = doneN;
+
+  // Progress
+  const pw = document.getElementById('progress-wrap');
+  pw.style.display = total ? '' : 'none';
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-pct').textContent = pct + '%';
+
+  // Footer
+  const info = document.getElementById('footer-info');
+  if (total === 0) info.innerHTML = 'Aucune tâche';
+  else info.innerHTML = `<strong>${activeN}</strong> tâche${activeN !== 1 ? 's' : ''} restante${activeN !== 1 ? 's' : ''}`;
+
+  // List
+  list.innerHTML = '';
+  const items = filtered();
+  if (items.length === 0) {
+    const msgs = {
+      all: ['Aucune tâche pour l\'instant', 'Ajoutez votre première tâche ci-dessus.'],
+      active: ['Tout est terminé !', 'Toutes vos tâches sont cochées.'],
+      completed: ['Aucune tâche terminée', 'Vos tâches complétées apparaîtront ici.'],
+    };
+    const [title, sub] = msgs[filter];
+    const div = document.createElement('div');
+    div.className = 'empty-state';
+    div.innerHTML = `
+      <div class="empty-icon">
+        <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      </div>
+      <p>${title}</p><span>${sub}</span>`;
+    list.appendChild(div);
+    return;
+  }
+  items.forEach(task => list.appendChild(makeItem(task)));
+}
+
+function makeItem(task) {
+  const li = document.createElement('li');
+  li.className = 'todo-item' + (task.completed ? ' completed' : '');
+  li.dataset.id = task.id;
+
+  // Checkbox
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.className = 'todo-cb';
+  cb.checked = task.completed;
+  cb.addEventListener('change', () => toggleTask(task.id));
+
+  // Priority dot (cosmetic — cycles on click)
+  const dot = document.createElement('span');
+  dot.className = 'priority-dot' + (task.priority ? ' ' + task.priority : '');
+  dot.title = 'Priorité';
+  dot.addEventListener('click', () => {
+    const levels = [undefined, 'low', 'mid', 'high'];
+    const cur = levels.indexOf(task.priority);
+    task.priority = levels[(cur + 1) % levels.length];
+    save(); render();
+  });
+
+  // Text
+  const span = document.createElement('span');
+  span.className = 'todo-text';
+  span.textContent = task.text;
+  span.addEventListener('dblclick', () => startEdit(li, task));
+
+  // Actions
+  const actions = document.createElement('div');
+  actions.className = 'item-actions';
+
+  const editBtn = makeBtn('edit', `<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>`);
+  editBtn.addEventListener('click', () => startEdit(li, task));
+
+  const delBtn = makeBtn('del', `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>`);
+  delBtn.addEventListener('click', () => deleteTask(task.id));
+
+  actions.append(editBtn, delBtn);
+  li.append(cb, dot, span, actions);
+  return li;
+}
+
+function makeBtn(cls, svg) {
+  const b = document.createElement('button');
+  b.className = 'act-btn ' + cls;
+  b.innerHTML = svg;
+  return b;
+}
+
+function startEdit(li, task) {
+  const span = li.querySelector('.todo-text');
+  const actions = li.querySelector('.item-actions');
+  const inp = document.createElement('input');
+  inp.className = 'todo-edit-input';
+  inp.value = task.text;
+  span.replaceWith(inp);
+  actions.style.opacity = '0';
+  inp.focus(); inp.select();
+  const done = () => updateTask(task.id, inp.value);
+  inp.addEventListener('blur', done);
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') done();
+    if (e.key === 'Escape') render();
+  });
+}
+
+// ── Événements ────────────────────────────────────────────────────────────────
+document.getElementById('add-btn').addEventListener('click', () => {
+  const inp = document.getElementById('new-task');
+  addTask(inp.value); inp.value = ''; inp.focus();
+});
+
+document.getElementById('new-task').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    addTask(e.target.value); e.target.value = '';
+  }
+});
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelector('.filter-btn.active').classList.remove('active');
+    btn.classList.add('active');
+    filter = btn.dataset.filter;
+    render();
+  });
+});
+
+document.getElementById('clear-completed').addEventListener('click', clearCompleted);
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+load(); render();
+</script>
+</body>
+</html>
